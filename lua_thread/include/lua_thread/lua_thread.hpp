@@ -49,17 +49,13 @@ concept is_a_lua_type =
 template<typename... T>
 concept is_multiple_lua = requires(T... args) { (is_a_lua_type<T> || ...) && (sizeof...(args) > 1); };
 
-class lua_syntax_error : public std::domain_error {
+class lua_syntax_error : std::runtime_error {
     lua_syntax_error(const std::string& what_arg);
-};
+}; // // class lua::thread::lua_syntax_
 
 class bad_load_error : public std::runtime_error {
     bad_load_error(const std::string& what_arg);
 }; // // class lua::thread::bad_load_error
-
-class lost_thread_error : public std::runtime_error {
-    lost_thread_error(const std::string& what_arg);
-}; // class lua::thread::lost_thread_error
 
 //////////////////////// lua_thread ////////////////////////
 
@@ -78,9 +74,10 @@ public:
     }; // class lua::thread::id
     
     lua_thread();
-    lua_thread(const std::filesystem::path& source_path); 
-    lua_thread(std::string_view source) ;
-    lua_thread(const lua_thread&& other);
+    lua_thread(const lua_thread& other) = delete;
+    lua_thread(lua_thread&& other);
+    lua_thread(const std::filesystem::path& source_path);
+    lua_thread(std::string_view source);
     lua_thread& operator=(const lua_thread&& other);
     ~lua_thread();
     bool joinable() const;
@@ -88,13 +85,14 @@ public:
     void detatch();
     id get_id() const;
     lua_State* get_state(); 
+    void swap(lua_thread& left, lua_thread& right);
 
     template<is_a_lua_type R, is_a_lua_type...  Args>
-    R call_lua_function(std::string_view name, Args... args);
+    R call_lua_function(std::string_view name, const Args&... args);
 private:
-    lua_State* m_state;
-    bool m_joinable;
-    id m_id;
+    lua_State* m_state = nullptr;
+    id m_id = m_id();
+    bool m_joinable = false;
     
     lua_State static lua_thread::m_create_state();
 
@@ -110,5 +108,7 @@ private:
     T m_to_type(int pos);
 
 }; // class lua::thread
+
+
 
 }; // namespace lua
