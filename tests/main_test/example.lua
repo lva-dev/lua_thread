@@ -1,0 +1,1 @@
+io.write("Thread 2 has been created (from example.lua)")

@@ -1,9 +1,10 @@
+#pragma once
+
 #include <string>
-#include <string_view>
 #include <stdexcept>
+#include <filesystem>
 
-// Forward Declarations
-
+// Forward declaration
 struct lua_State;
 
 // lua 
@@ -25,41 +26,49 @@ using string = std::string;
 //////////////////////// Concepts ////////////////////////
 
 template<typename T> 
-concept is_lua_nil = std::is_same_v<T, lua::nil>;
+concept NilType = std::same_as<T, lua::nil>;
 
 template<typename T> 
-concept is_lua_boolean = std::is_same_v<T, bool>;
+concept BooleanType = std::same_as<T, bool>;
 
 template<typename T> 
-concept is_lua_number = std::is_arithmetic_v<T>;
+concept NumberType = std::is_convertible_v<T, double> &&
+    !std::is_same_v<T, bool> &&
+    !std::is_same_v<T, char> &&
+    !std::is_same_v<T, signed char> &&
+    !std::is_same_v<T, unsigned char>;
 
 template<typename T>
-concept is_lua_string = 
+concept StringType = 
     std::is_same_v<T, std::basic_string<typename T::value_type>>
     || std::is_same_v<T, const char*>;
 
 template<typename T>
-concept is_a_lua_type = 
-    is_lua_nil<T> 
-    || is_lua_boolean<T> 
-    || is_lua_number<T> 
-    || is_lua_string<T>;
-
+concept LuaType = 
+    NilType<T> 
+    || BooleanType<T> 
+    || NumberType<T> 
+    || StringType<T>;
     
 template<typename... T>
-concept is_multiple_lua = requires(T... args) { (is_a_lua_type<T> || ...) && (sizeof...(args) > 1); };
-
-class lua_syntax_error : std::runtime_error {
-    lua_syntax_error(const std::string& what_arg);
-}; // // class lua::thread::lua_syntax_
-
-class bad_load_error : public std::runtime_error {
-    bad_load_error(const std::string& what_arg);
-}; // // class lua::thread::bad_load_error
+concept MultipleLuaTypes = requires(T... args) { (LuaType<T> || ...) && (sizeof...(args) > 1); };
 
 //////////////////////// lua_thread ////////////////////////
 
+// For specializing std::swap for lua_thread;
+using std::swap;
+
 class lua_thread {
+public:
+    class lua_syntax_error : std::runtime_error {
+    public:
+        lua_syntax_error(const std::string& what_arg);
+    }; // class lua_syntax_error
+    
+    class bad_alloc_error : std::runtime_error {
+    public:
+        bad_alloc_error(const std::string& what_arg);
+    }; // class bad_alloc_error
 public:
     class id {
     public:
@@ -67,48 +76,43 @@ public:
         auto operator<=>(const id& other) const = default;
     private:
         friend class lua_thread;
-        inline static constexpr uintptr_t DEFAULT_ID = 0;
         id(const lua_State* internal_lua_state);
-        id& operator=(id&& other);
         uintptr_t m_id;
-    }; // class lua::thread::id
-    
+    }; // class id
+public:
     lua_thread();
-    lua_thread(const lua_thread& other) = delete;
     lua_thread(lua_thread&& other);
-    lua_thread(const std::filesystem::path& source_path);
-    lua_thread(std::string_view source);
-    lua_thread& operator=(const lua_thread&& other);
+    lua_thread(const lua_thread& other) = delete;
+    static lua_thread from_path(const std::filesystem::path& source_path);
+    static lua_thread from_string(const std::string& source);
+    lua_thread& operator=(lua_thread&& other);
     ~lua_thread();
+    
+    void start();
     bool joinable() const;
+    id get_id() const;
+    lua_State* internal_state() const; 
+
     void join();
     void detatch();
-    id get_id() const;
-    lua_State* get_state(); 
-    void swap(lua_thread& left, lua_thread& right);
+    void swap(lua_thread& other);
 
-    template<is_a_lua_type R, is_a_lua_type...  Args>
-    R call_lua_function(std::string_view name, const Args&... args);
+    template<LuaType R, LuaType...  Args>
+    R call_lua_function(const std::string& name, const Args&... args);
 private:
-    lua_State* m_state = nullptr;
-    id m_id = m_id();
-    bool m_joinable = false;
-    
-    lua_State static lua_thread::m_create_state();
+    lua_State* m_state;
+    id m_id;
+    bool m_joinable;
 
-    std::string get_lua_error_message(const std::string& message);
-
-    template<typename T, typename Expected>
+    template<LuaType T, LuaType Expected>
     void m_is_type(T value) const;
 
-    template<typename T>
+    template<LuaType T>
     void m_push_type(T value);
 
-    template<typename T>
-    T m_to_type(int pos);
+    template<LuaType To>
+    To m_to_type(int pos);
 
-}; // class lua::thread
-
-
+}; // class lua_thread
 
 }; // namespace lua

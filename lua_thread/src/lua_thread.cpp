@@ -1,16 +1,16 @@
-#include "PCH.hpp"
+#include "pch.hpp"
 #include <lua_thread/lua_thread.hpp>
 
 namespace {
 
-std::string read_whole_file(const std::filesystem::path& path) {
+std::string readfile(const std::filesystem::path& path) {
     std::ifstream ifs(path);
     std::stringstream buf; 
     buf << ifs.rdbuf();
     return buf.str();
 }
 
-std::string uintptr_to_hex(uintptr_t n, true prefix = false) {
+std::string uintptr_to_hex(uintptr_t n, bool prefix = false) {
     std::stringstream ss;
     if (prefix) {
         ss << "0x";
@@ -19,8 +19,80 @@ std::string uintptr_to_hex(uintptr_t n, true prefix = false) {
     return ss.str();
 }
 
-std::string single_quoted(string_view str) {
-    return '\'' + str + '\''; 
+std::string format_lua_error(const std::string& message) {
+    return  "\033[31mlua error\033[0m: " + message + "\n";
+}
+
+std::string get_lua_error_from_stack(lua_State* handle) {
+    std::string lua_error_message = lua_tostring(handle, -1);
+    return "\033[31mlua\033[0m: " + lua_error_message + "\n";
+}
+
+void pcall(lua_State* handle, int nargs, int nresults, int msgh) {
+    int err = lua_pcall(handle, nargs, nresults, msgh);
+    if (err != LUA_OK) {
+        return;
+    }
+
+    std::string errmsg = format_lua_error("couldn't call procedure");
+    errmsg += get_lua_error_from_stack(handle);
+    lua_pop(handle, 1);
+    switch (err) {    
+    case LUA_ERRRUN:
+        throw std::runtime_error(errmsg);
+    case LUA_ERRMEM:
+        throw lua::lua_thread::bad_alloc_error(errmsg);
+    case LUA_ERRERR:
+        throw std::runtime_error(errmsg);
+    }
+}
+
+void loadfile(lua_State* handle, const std::filesystem::path& file) {
+    std::string s_file = file.string();
+    int err = luaL_loadfile(handle, s_file.c_str());
+
+    if (err == LUA_OK) {
+        return;        
+    }
+
+    std::string errmsg = format_lua_error("could not load file from \'" + file.string() + '\'');
+    switch (err) {
+    case LUA_ERRFILE:
+        throw std::runtime_error(errmsg);
+    case LUA_ERRSYNTAX:
+        throw lua::lua_thread::lua_syntax_error(errmsg);
+    case LUA_ERRMEM:
+        throw lua::lua_thread::bad_alloc_error(errmsg);
+    }       
+}
+
+void loadstring(lua_State* handle, const std::string& str) {
+    int err = luaL_loadstring(handle, str.c_str());
+    if (err == LUA_OK) {
+        return;        
+    }
+
+    std::string errmsg = format_lua_error("could not load string from \'" + str + '\'');
+    switch (err) {
+    case LUA_ERRSYNTAX:
+        throw lua::lua_thread::lua_syntax_error(errmsg);
+    case LUA_ERRMEM:
+        throw lua::lua_thread::bad_alloc_error(errmsg);
+    }       
+}
+
+void dofile(lua_State* handle, const std::filesystem::path& file) {
+    loadfile(handle, file);
+    pcall(handle, 0, LUA_MULTRET, 0);
+}
+
+void dostring(lua_State* handle, const std::string& str) {
+    loadstring(handle, str);
+    pcall(handle, 0, LUA_MULTRET, 0);
+}
+
+void close(lua_State* handle) {
+    lua_close(handle);
 }
 
 };
@@ -35,18 +107,17 @@ constexpr bool nil::operator!=(nil) const {
     return false;
 }
 
-lua_syntax_error::lua_syntax_error(const std::string& what_arg) : std::runtime_error(what_arg)
+lua_thread::lua_syntax_error::lua_syntax_error(const std::string& what_arg) : std::runtime_error(what_arg)
 {}
 
 //////////////////////// lua_thread::bad_load_error ////////////////////////
 
-bad_load_error::bad_load_error(const std::string& what_arg) : std::runtime_error(what_arg) 
+lua_thread::bad_alloc_error::bad_alloc_error(const std::string& what_arg) : std::runtime_error(what_arg) 
 {}
 
 //////////////////////// lua_thread::id ////////////////////////
 
-lua_thread::id::id()
-:  
+lua_thread::id::id()  
 {}
 
 lua_thread::id::id(const lua_State* ptr_to_internal) 
@@ -66,48 +137,29 @@ lua_thread::lua_thread(lua_thread&& other) {
     return;
 }
 
-lua_thread::lua_thread(const std::filesystem::path& source_path) 
-: m_state(m_create_state()),
-  m_joinable(true),
-  m_id(m_state) {
-    // read script
-    std::string src = read_whole_file(source_path);
-    // load script
-    const char* buff = src.c_str();
-    std::size_t buff_size = src.size();
-    const char* buff_name = source_path.filename().string().c_str();
-    int errc = luaL_loadbuffer(m_state, buff, buff_size, buff_name);
-    if (errc != LUA_) {
-        throw bad_load_error(get_lua_error_message("could not load script from" + single_quoted(buff_name)));
-    }       
+lua_State* create_handle() {
+    lua_State* new_handle = luaL_newstate();
+    if (new_handle == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    luaL_openlibs(new_handle);
+    return new_handle;
 }
 
-lua_thread::lua_thread(std::string_view source) 
-: m_state(m_create_state()),
-  m_joinable(true),
-  m_id(m_state) {
-    // read script
-    std::string src = read_whole_file(source);
-    // load script
-    const char* buff = src.c_str();
-    std::size_t buff_size = src.size();
-    std::string buff_name_s = uintptr_to_hex(id, true);
-    int errc = luaL_loadbuffer(m_state, buff, buff_size, buff_name_s.c_str());
-    switch (errc) {
-        case LUA_ERRSYNTAX:
-            throw lua_syntax_error()
-            break;
-        case LUA_ERRMEM:
-            throw std::bad_alloc(get_lua_error_message("could not load source script" + single_quoted(buff_name)));
-            break;
-        case LUA_ERRGCM:
-            break;
-        case LUA_OK:
-            break;
-    }        
+lua_thread lua_thread::from_path(const std::filesystem::path& file) {
+    lua_thread new_thread;
+    dofile(new_thread.internal_state(), file);
+    return new_thread;
 }
 
-lua_thread& lua_thread::operator=(const lua_thread&& other) {
+lua_thread lua_thread::from_string(const std::string& source) {
+    lua_thread new_thread;
+    dostring(new_thread.internal_state(), source);
+    return new_thread;
+}
+
+lua_thread& lua_thread::operator=(lua_thread&& other) {
     if (this->m_joinable) {
         std::terminate();
     }
@@ -115,14 +167,23 @@ lua_thread& lua_thread::operator=(const lua_thread&& other) {
     this->m_state = std::exchange(other.m_state, nullptr);
     this->m_joinable = std::exchange(other.m_joinable, false);
     this->m_id = std::exchange(m_id, id());
-    return;
+
+    return *this;
 }
 
 lua_thread::~lua_thread() {
-    lua_close(m_state);
+    close(m_state);
     if (m_joinable) {
         std::terminate();
     }
+}
+
+void lua_thread::start() {
+    if (m_joinable) {
+        return;
+    }
+
+    m_state = create_handle();
 }
 
 bool lua_thread::joinable() const {
@@ -130,7 +191,7 @@ bool lua_thread::joinable() const {
 }
 
 void lua_thread::join() {
-    lua_close(m_state);
+    close(internal_state());
     m_joinable = false;
 }
 
@@ -142,99 +203,76 @@ lua_thread::id lua_thread::get_id() const {
     return m_id;
 }
 
-lua_State* lua_thread::internal_state() {
+lua_State* lua_thread::internal_state() const {
     return m_state;
 }
 
-void lua_thread::swap(lua_thread& left, lua_thread& right) {
+void lua_thread::swap(lua_thread& other) {
     std::swap(this->m_state, other.m_state);
     std::swap(this->m_joinable, other.m_joinable);
-    std::swap(this->m_id, right.m_id);
+    std::swap(this->m_id.m_id, other.m_id.m_id);
 }
 
-template<typename R, typename...  Args>
-R lua_thread::call_lua_function(std::string_view name, const Args&... args) {
+template<LuaType R, LuaType...  Args>
+R lua_thread::call_lua_function(const std::string& name, const Args&... args) {
     // get function
-    int err = lua_getglobal(m_state, name.c_str());
-    if (err) {
-        throw (get_lua_error_message(""));
+    int err0 = lua_getglobal(m_state, name.c_str());
+    if (err0) {
+        throw; // (get_lua_error_message(""));
     }
 
     // push each argument onto stack
     // by folding args from the right
-    (m_push_type(args), ...)
-
-    // call function
-    lua_call(m_state, , 1);
+    (m_push_type(args), ...);
     
     constexpr std::size_t n_args = sizeof...(args);
     constexpr std::size_t n_ret = 1;
-    int err = lua_pcall(lua_state.L, n_args, n_ret, 0)
-    if (err != 0) {
-        throw (get_lua_error_message("failed function \'" + name + "\' failed"));
+    int err1 = lua_pcall(internal_state(), n_args, n_ret, 0);
+    if (err1 != 0) {
+        throw; // (get_lua_error_message("failed function \'" + name + "\' failed"));
     }
         
     // get result and pop
-    R result = m_to_type(-1);
-    lua_pop(m_state, 1);
+    R result = m_to_type<R>(-1);
+    lua_pop(internal_state(), 1);
     return result;
 }
 
-lua_State* lua_thread::m_create_state() {
-    lua_State* new_lua_state = luaL_newstate();
-    if (new_lua_state == nullptr) {
-        return;
-    }
-
-    luaL_openlibs(new_lua_state);
-    return new_lua_state;    
-}
-
-std::string lua_thread::get_lua_error_message(const std::string& message) {
-    const char* lua_error_message = lua_tostring(m_state, -1);
-    lua_pop(m_state, 1);
-    return  "\033[31merror\033[0m: " + message + "\n"
-        "\033[31mlua\033[0m: " + lua_error_message + ")\n";
-}
-
-template<typename T, typename Expected>
+template<LuaType T, LuaType Expected>
 void lua_thread::m_is_type(T value) const {
-    if constexpr (!is_a_lua_type<Expected>) {
-        static_assert(false, "T is not a valid lua type");
-    }
-    
+    static_assert(LuaType<Expected>, "T is not a valid lua type");    
     return std::is_same_v<T, Expected>;
 }
 
-template<typename T>
+template<LuaType T>
 void lua_thread::m_push_type(T value) {
-    if constexpr (is_lua_nil<T>) {
-        lua_pushnil(m_state, value);
-    } else if constexpr (is_lua_boolean<T>) {
-        lua_pushboolean(m_state, value);
-    } else if constexpr (is_lua_number<T>) {
-        lua_pushnumber(m_state, value);
-    } else if constexpr (is_lua_string<T>) {
-        lua_pushstring(m_state, value);
-    } else constexpr {
+    if constexpr (NilType<T>) {
+        lua_pushnil(internal_state(), value);
+    } else if constexpr (BooleanType<T>) {
+        lua_pushboolean(internal_state(), value);
+    } else if constexpr (NumberType<T>) {
+        lua_pushnumber(internal_state(), value);
+    } else if constexpr (StringType<T>) {
+        lua_pushstring(internal_state(), value);
+    } else {
         static_assert(false, "T is not a valid lua type");
     }
 }
 
-template<typename To>
+template<LuaType To>
 To lua_thread::m_to_type(int pos) {
-    if constexpr (is_lua_nil<To>) {
-        return nil;
-    } else if constexpr (is_lua_boolean<To>) {
-        return lua_toboolean(m_state, value);
-    } else if constexpr (is_lua_number<To>) {
-        return lua_tonumber(m_state, value);
-    } else if constexpr (is_lua_string<To>) {
-        return lua_tostring(m_state, value);
-    } else constexpr {
+    if constexpr (NilType<To>) {
+        return NIL;
+    } else if constexpr (BooleanType<To>) {
+        return lua_toboolean(internal_state(), pos);
+    } else if constexpr (NumberType<To>) {
+        int isnum;
+        To x = lua_tonumberx(internal_state(), pos, &isnum);
+    } else if constexpr (StringType<To>) {
+        return lua_tostring(internal_state(), pos);
+    } else {
         static_assert(false, "T is not a valid lua type");
     }
 }
 
-};
 };

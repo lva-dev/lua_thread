@@ -1,4 +1,26 @@
 {
+    "Lua.workspace.library": [
+        "./premake_stubs.lua"
+    ],
+    "Lua.diagnostics.disable": [
+        "lowercase-global"
+    ],
+    "Lua.diagnostics.globals": [
+        "workspace",
+        "project",
+        "location",
+        "kind",
+        "language",
+        "files",
+        "filter",
+        "configurations",
+        "includedirs",
+        "defines",
+        "links",
+        "targetdir",
+        "targetname"
+    ],
+
     "files.associations": {
         "iosfwd": "cpp",
         "filesystem": "cpp",
@@ -69,5 +91,5 @@
         "thread": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp"
-    }
+    },
 }
