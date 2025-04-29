@@ -9,5 +9,5 @@ group "lua_thread"
 group ""
 
 group "Tests"
-   include "tests/main_test"
+   include "tests"
 group ""

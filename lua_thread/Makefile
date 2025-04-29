@@ -27,7 +27,7 @@ ifeq ($(config),debug)
   PCH = src/pch.hpp
   GCH = $(OBJDIR)/$(notdir $(PCH)).gch
   DEFINES += -DWINDOWS -DDEBUG
-  INCLUDES += -Ivendor/lua-5.4.7/install/include -Iinclude -Isrc
+  INCLUDES += -I/include -Iinclude -Isrc
   FORCE_INCLUDE += -include $(OBJDIR)/$(notdir $(PCH))
   ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
   ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -g -Wall -Wno-unused
@@ -35,12 +35,12 @@ ifeq ($(config),debug)
   ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
   LIBS += -llua
   LDDEPS +=
-  ALL_LDFLAGS += $(LDFLAGS) -Lvendor/lua-5.4.7/install/lib -L/usr/lib64 -m64
+  ALL_LDFLAGS += $(LDFLAGS) -L/lib -L/usr/lib64 -m64
   LINKCMD = $(AR) -rcs "$@" $(OBJECTS)
   define PREBUILDCMDS
 	@echo Running prebuild commands
-	pushd C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7 && make mingw && make install INSTALL_TOP=C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7/install && popd
-	cp C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7/install/lib/liblua.a C:/Users/adote/Projects/CppProjects/lua_thread/bin/windows-x86_64-Debug/lua_thread
+	pushd C:/msys64/home/517540/lua_thread/lua_thread/vendor/lua-5.4.7 && make mingw && make install INSTALL_TOP=/lua && popd
+	cp /lua/lib/liblua.a /lua
   endef
   define PRELINKCMDS
   endef
@@ -68,7 +68,7 @@ ifeq ($(config),release)
   PCH = src/pch.hpp
   GCH = $(OBJDIR)/$(notdir $(PCH)).gch
   DEFINES += -DWINDOWS -DRELEASE
-  INCLUDES += -Ivendor/lua-5.4.7/install/include -Iinclude -Isrc
+  INCLUDES += -I/include -Iinclude -Isrc
   FORCE_INCLUDE += -include $(OBJDIR)/$(notdir $(PCH))
   ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
   ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -O2 -g -Wall -Wno-unused
@@ -76,12 +76,12 @@ ifeq ($(config),release)
   ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
   LIBS += -llua
   LDDEPS +=
-  ALL_LDFLAGS += $(LDFLAGS) -Lvendor/lua-5.4.7/install/lib -L/usr/lib64 -m64
+  ALL_LDFLAGS += $(LDFLAGS) -L/lib -L/usr/lib64 -m64
   LINKCMD = $(AR) -rcs "$@" $(OBJECTS)
   define PREBUILDCMDS
 	@echo Running prebuild commands
-	pushd C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7 && make mingw && make install INSTALL_TOP=C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7/install && popd
-	cp C:/Users/adote/Projects/CppProjects/lua_thread/lua_thread/vendor/lua-5.4.7/install/lib/liblua.a C:/Users/adote/Projects/CppProjects/lua_thread/bin/windows-x86_64-Release/lua_thread
+	pushd C:/msys64/home/517540/lua_thread/lua_thread/vendor/lua-5.4.7 && make mingw && make install INSTALL_TOP=/lua && popd
+	cp /lua/lib/liblua.a /lua
   endef
   define PRELINKCMDS
   endef

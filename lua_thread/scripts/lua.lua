@@ -1,49 +1,43 @@
-function SetupLuaForProject()
-    local system_xxx = {}
-    system_xxx["aix"] = "aix"
-    system_xxx["bsd"] = "freebsd"
-    system_xxx["ios"] = "ios"
-    system_xxx["linux"] = "linux"
-    system_xxx["macosx"] = "macosx"
-    system_xxx["solaris"] = "solaris"
-    system_xxx["windows"] = "mingw"
 
+local function get_lua_makefile_system()
+    if     os.target() == "aix"      then return "aix"
+    elseif os.target() == "bsd"      then return "freebsd"
+    elseif os.target() == "ios"      then return "ios"
+    elseif os.target() == "linux"    then return "linux"
+    elseif os.target() == "macosx"   then return "macosx"
+    elseif os.target() == "solaris"  then return "solaris"
+    elseif os.target() == "windows"  then return "mingw"
+    else return "guess"
+    end
+end
+
+function SetupLuaForProject()
     local dep = {}
     dep.lua = {}
-    dep.lua.luaname = "lua-5.4.7"
-    dep.lua.rootpath = "%{!wks.location}/lua_thread/vendor/lua-5.4.7"
-    dep.lua.installpath = dep.lua.rootpath .. "/install"
-
-    dep.lua.outpath = "%{!wks.location}/bin/" .. outputdir .. "/lua_thread"
-    dep.lua.outincludedirs = { dep.lua.installpath .. "/include" }
-    dep.lua.outlibdirs = { dep.lua.installpath .. "/lib" }
-    dep.lua.outlinks = { "lua" }
-
-    dep.lua.system = system_xxx["%{cfg.system}"]
-    dep.lua.system = "mingw"
     
+    dep.lua.name        = "lua-5.4.7"
+    dep.lua.rootpath    = "%{!wks.location}/lua_thread/vendor/lua-5.4.7"
+    dep.lua.installpath = path.join("%{!wks.location}/bin/", outputdir, "/lua")
+    dep.lua.outpath     = path.join("%{!wks.location}/bin/", outputdir, "/lua")
+
+    dep.lua.outincludedirs  = { path.join(dep.lua.installpath, "/include") }
+    dep.lua.outlibdirs      = { path.join(dep.lua.installpath, "/lib") }
+    dep.lua.outlinks        = { "lua" }
+    
+    dep.lua.system = get_lua_makefile_system()
+
     -- Building lua
-    -- buildmessage ("building " .. dep.lua.luaname .. "...")
+    -- buildmessage ("building " .. dep.lua.name .. "...")
 
     prebuildcommands {
-        "pushd " .. dep.lua.rootpath .. " && make " .. dep.lua.system .. " && make install INSTALL_TOP=" .. dep.lua.installpath .. " && popd"
-    }
-
-    
-    prebuildcommands {
+        "pushd " .. dep.lua.rootpath .. " && make " .. dep.lua.system .. " && make install INSTALL_TOP=" .. dep.lua.installpath .. " && popd",
         "cp " .. dep.lua.installpath .. "/lib/liblua.a " .. dep.lua.outpath
     }
-
-    -- rebuildcommands {
-    --     "pushd " .. dep.lua.rootpath .. " && make " .. dep.lua.system .. " && make install INSTALL_TOP=" .. dep.lua.outputpath .. " && popd"
-    -- }
-
-    -- cleancommands {
-    --     "pushd " .. dep.lua.rootpath .. " make clean " .. dep.lua.system
-    -- }
+    
+    prebuildcommands {}
     
     -- For project
-    includedirs { table.unpack(dep.lua.outincludedirs) }
-    libdirs { table.unpack(dep.lua.outlibdirs) }
-    links { table.unpack(dep.lua.outlinks) }
+    includedirs { dep.lua.outincludedirs }
+    libdirs { dep.lua.outlibdirs }
+    links { dep.lua.outlinks }
 end
