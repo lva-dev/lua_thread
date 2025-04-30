@@ -102,7 +102,6 @@ public:
 private:
     lua_State* m_state;
     id m_id;
-    bool m_joinable;
 
     template<LuaType T, LuaType Expected>
     void m_is_type(T value) const;

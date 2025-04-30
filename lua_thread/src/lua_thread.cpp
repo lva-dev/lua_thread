@@ -131,9 +131,8 @@ lua_thread::lua_thread()
 
 
 lua_thread::lua_thread(lua_thread&& other) {
-    this->m_state = std::exchange(other.m_state, nullptr);
-    this->m_joinable = std::exchange(other.m_joinable, false);
-    this->m_id = std::exchange(m_id, id());
+    m_state = std::exchange(other.m_state, nullptr);
+    m_id = std::exchange(other.m_id, id());
     return;
 }
 
@@ -160,26 +159,25 @@ lua_thread lua_thread::from_string(const std::string& source) {
 }
 
 lua_thread& lua_thread::operator=(lua_thread&& other) {
-    if (this->m_joinable) {
+    if (joinable()) {
         std::terminate();
     }
 
-    this->m_state = std::exchange(other.m_state, nullptr);
-    this->m_joinable = std::exchange(other.m_joinable, false);
-    this->m_id = std::exchange(m_id, id());
+    m_state = std::exchange(other.m_state, nullptr);
+    m_id = std::exchange(m_id, id());
 
     return *this;
 }
 
 lua_thread::~lua_thread() {
     close(m_state);
-    if (m_joinable) {
+    if (joinable()) {
         std::terminate();
     }
 }
 
 void lua_thread::start() {
-    if (m_joinable) {
+    if (joinable()) {
         return;
     }
 
@@ -187,16 +185,16 @@ void lua_thread::start() {
 }
 
 bool lua_thread::joinable() const {
-    return m_joinable;
+    return get_id() == id();
 }
 
 void lua_thread::join() {
     close(internal_state());
-    m_joinable = false;
+    m_id = id();
 }
 
 void lua_thread::detatch() {
-    m_joinable = false;
+    m_id = id();
 }
 
 lua_thread::id lua_thread::get_id() const {
@@ -209,7 +207,6 @@ lua_State* lua_thread::internal_state() const {
 
 void lua_thread::swap(lua_thread& other) {
     std::swap(this->m_state, other.m_state);
-    std::swap(this->m_joinable, other.m_joinable);
     std::swap(this->m_id.m_id, other.m_id.m_id);
 }
 
