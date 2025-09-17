@@ -1,5 +1,5 @@
 # lua_thread
-
+An C++ object-oriented and type-safe interface to Lua's C API, modeled after std::thread.
 ## Building Independently
 Create a `build` directory and run CMake.
 ```bash
@@ -26,4 +26,5 @@ add_executable(${TARGET} src/main.cpp)
 target_link_libraries(${TARGET} PUBLIC lua_thread::lua_thread)
 ```
 ## License
+
 lua_thread is distributed under the terms of the MIT License.
