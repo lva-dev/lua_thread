@@ -19,9 +19,11 @@ project(PROJECT_NAME)
 # add lua_thread as a subdirectory
 add_subdirectory(vendor/lua_thread)
 
-add_executable(PROJECT_TARGET src/main.cpp)
+set(TARGET target)
+
+add_executable(${TARGET} src/main.cpp)
 # link lua_thread
-target_link_libraries(lua_thread)
+target_link_libraries(${TARGET} PUBLIC lua_thread::lua_thread)
 ```
 ## License
 lua_thread is distributed under the terms of the MIT License.
